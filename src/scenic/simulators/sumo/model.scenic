@@ -21,7 +21,7 @@ class Car:
     speed: -1
     speedMode: ""
     track: 0
-    color: [0,0,0,1]
+    color: [255,255,255,255]
     size: 5
     changeSpeed: ""
     tau: 0
@@ -30,7 +30,6 @@ class Car:
     laneMode = 0
     laneChanges = ""
     routeID: ""
-
 class TrafficLight:
     """TrafficLight"""
     name: ""

@@ -13,7 +13,7 @@ import os
 import xml.etree.ElementTree as xml
 from scenic.simulators.sumo.Utilities.config import SUMO
 import scenic.simulators.sumo.Utilities.randomTrips as randomTrips
-
+from scenic.core.scenarios import Scene
 
 
 class SumoSimulator:
@@ -30,11 +30,23 @@ class SumoSimulator:
         self.scenario_number = 0
         self.sumo_config = sumo_config
 
+        self._scenes = []
         self.createSimulation()
 
     def createSimulation(self):
         self.scenario_number += 1
-        return SumoSimulation(self.scenario_number, self.map_File, self.scenic_file, self.sumo_config)
+        sim = SumoSimulation(
+            self.scenario_number, 
+            self.map_File, 
+            self.scenic_file, 
+            self.sumo_config
+        )
+        self._scenes.append(sim.scene)
+        return sim
+
+    @property
+    def scenes(self):
+        return self._scenes
 
 class SumoSimulation:
     
@@ -62,8 +74,16 @@ class SumoSimulation:
         self.__checkForUtilities(self._scene, self.map_file)
         traci.start(sumo_cmd)        
 
+        if self._sumo_config["gui"]:
+            traci.gui.setSchema(traci.gui.DEFAULT_VIEW, "real world")
+
         self.__iterateScene(self._scene)
         self.__runSimulation()
+
+    @property
+    def scene(self) -> Scene:
+        return self._scene[0]
+
 
     def __checkForUtilities(self, scene : tuple, folderName : str):
         """Checks for Utility files that will be used in the scene.
@@ -207,6 +227,7 @@ class SumoSimulation:
         if scenicObj.track == 1:
             if self._sumo_config["gui"]:
                 traci.gui.track(scenicObj.name)
+                traci.gui.setZoom(traci.gui.DEFAULT_VIEW, 400)
 
         if scenicObj.distance != 0 or \
             scenicObj.distance > traci.lane.getLength(road[1] + '_' + str(scenicObj.lane)):
@@ -309,6 +330,9 @@ class SumoSimulation:
                 if scenicObj.changeSpeed != "" and \
                     scenicObj.changeSpeed[2] == traci.simulation.getTime():
                     traci.vehicle.slowDown(scenicObj.name, scenicObj.changeSpeed[0], scenicObj.changeSpeed[1])
+
+            if not "ego" in traci.vehicle.getIDList():
+                break
 
             traci.simulation.step()
 

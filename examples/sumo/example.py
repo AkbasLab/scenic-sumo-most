@@ -1,8 +1,27 @@
 import os
 FILE_DIR = os.path.dirname(os.path.abspath(__file__))
 
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning) 
+
 import scenic
+import json
 from scenic.simulators.sumo.simulator import SumoSimulator
+
+
+def describe(car) -> str:
+        features = ["name", "route", "distance", "lane",
+            "speed","speedMode","color","changeSpeed","tau",
+            "parkPos","laneMode","laneChanges","routeID"]
+        
+        d = {}
+        for key, val in car.__dict__.items():
+            if key in features:
+                d[key] = val
+
+        pretty = json.dumps(d, sort_keys=True, indent=2)
+        print(pretty)
+        return pretty
 
 def main():
     config = {
@@ -33,22 +52,29 @@ def main():
       
     }
 
-        
-    scenes = ["1S1.scenic", "2S13.scenic"]
     
-    for scene in scenes:
-        scene_fn = "%s/scenes/%s" % (FILE_DIR, scene)
-        map_fn = "%s/maps/CurvyRoad.net.xml" % (FILE_DIR)
+    scene_fn = "%s/scenes/2S13.scenic" % (FILE_DIR)
+    map_fn = "%s/maps/CurvyRoad.net.xml" % (FILE_DIR)
+    simulator = SumoSimulator(map_fn, scene_fn, config)
 
-        print("Iitial test of %s" % scene)
-        scenario = SumoSimulator(map_fn, scene_fn, config)
+    for i in range(5):
+        simulator.createSimulation()
 
-        # Create more simulaitons
-        for i in range(1,3+1):
-            print(":: Test %d ::" % i)
-            x = scenario.createSimulation()
 
-        print("\n")
+
+    # scenario = scenic.scenarioFromFile(scene_fn)
+
+    
+    # scene, n_iter = scenario.generate()
+    # vehicles = [scenicObj for scenicObj in scene.objects \
+    #     if str(type(scenicObj)) \
+    #         == "<class 'scenic.simulators.sumo.model.Car'>"]
+        
+    # for veh in vehicles:
+    #     # print(veh.name)
+    #     describe(veh)                
+    
+
     return
 
 if __name__ == "__main__":
