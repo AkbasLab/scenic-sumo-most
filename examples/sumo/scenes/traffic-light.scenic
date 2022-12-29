@@ -41,6 +41,11 @@ npc2 = Car at 0 @ 4,
     with route the_route,
     with speed Range(0, 100) * kph2mps
 
+tl = TrafficLight at 0 @ 6,
+    with name "1423875783",
+    with state ["rrrrGGrrrrrrrr","rrrryyrrrrrrrr","rrrrrrrrrrrrrr"],
+    with duration [Range(1,30),Range(0,10),Range(1,30)]
+
 param ego_lane = ego.lane
 param ego_speed = ego.speed
 
@@ -52,3 +57,7 @@ param npc1_laneChange = npc1.laneChange[1]
 param npc2_lane = npc2.lane
 param npc2_distance = npc2.distance
 param npc2_speed = npc2.speed
+
+param tl_g = tl.duration[0]
+param tl_y = tl.duration[1]
+param tl_r = tl.duration[2]

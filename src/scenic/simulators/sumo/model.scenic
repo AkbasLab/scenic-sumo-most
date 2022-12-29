@@ -1,11 +1,11 @@
 """Scenic model for Sumo scenarios."""
 
 #Set up workspace
-width = 10
-length = 10
+width = 1000
+length = 1000
 workspace = Workspace(RectangularRegion(0 @ 0, 0, width, length))
 
-param bob = None
+# param bob = None
 
 #Types of Objects
 class Car:
@@ -33,8 +33,8 @@ class Car:
 class TrafficLight:
     """TrafficLight"""
     name: ""
-    state: ""
-    duration: ""
+    state: []
+    duration: []
 
 
 class Pedestrian:
@@ -44,6 +44,8 @@ class Pedestrian:
     departTime: 0
     distance: 0
     arrivalPos: 10
+    color: [255,255,255,255]
+    egoWaitAtXing: False
 
 class ParkingLot:
     """Parking Lot"""

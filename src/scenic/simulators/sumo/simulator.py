@@ -15,6 +15,10 @@ from scenic.simulators.sumo.Utilities.config import SUMO
 import scenic.simulators.sumo.Utilities.randomTrips as randomTrips
 from scenic.core.scenarios import Scene
 
+import numpy as np
+
+def euclidean_distance(p0 : list, p1 : list) -> float:
+    return np.sqrt((p0[0]-p1[0])**2 + (p0[1]-p1[1])**2)
 
 class SumoSimulator:
     
@@ -31,6 +35,7 @@ class SumoSimulator:
         self.sumo_config = sumo_config
 
         self._scenes = []
+        self._sims = []
         self.createSimulation()
 
     def createSimulation(self):
@@ -41,6 +46,7 @@ class SumoSimulator:
             self.scenic_file, 
             self.sumo_config
         )
+        self._sims.append(sim)
         self._scenes.append(sim.scene)
         return sim
 
@@ -48,9 +54,13 @@ class SumoSimulator:
     def scenes(self):
         return self._scenes
 
+    @property
+    def sims(self):
+        return self._sims
+
 class SumoSimulation:
     
-    __vehicle_list = []
+    
 
     def __init__(self, scenario_number : int, map_file : str, scenic_file : str, sumo_config : dict):
         """Sets up an individual scenic simulation.
@@ -65,6 +75,10 @@ class SumoSimulation:
         self.scenario_number = scenario_number
         self.map_file = map_file
         self.scenic_file = scenic_file
+
+        self.__vehicle_list = []
+        self.__pedestrian_list = []
+        self.__ped_ego_wait_at_xing_event = []
 
         self._scenario = scenic.scenarioFromFile(scenic_file)
         self._scene = self._scenario.generate(maxIterations = 2, verbosity = 0, feedback = 0)
@@ -83,6 +97,10 @@ class SumoSimulation:
     @property
     def scene(self) -> Scene:
         return self._scene[0]
+
+    @property
+    def ped_ego_wait_at_xing_event(self) -> list:
+        return self.__ped_ego_wait_at_xing_event
 
 
     def __checkForUtilities(self, scene : tuple, folderName : str):
@@ -200,7 +218,10 @@ class SumoSimulation:
                 self.__createTrafficLight(scenicObj)
 
             if str(type(scenicObj)) == "<class 'scenic.simulators.sumo.model.Pedestrian'>":
-                    self.__createPedestrian(scenicObj)
+                self.__createPedestrian(scenicObj)
+                self.__pedestrian_list.append(scenicObj)
+                self.__ped_ego_wait_at_xing_event.append(-1)
+        return
 
     def __createCar(self, carCount : int, scenicObj):
         """Creates a car from the scenic object
@@ -230,18 +251,21 @@ class SumoSimulation:
                 traci.gui.setZoom(traci.gui.DEFAULT_VIEW, 400)
 
         if scenicObj.distance != 0 or \
-            scenicObj.distance > traci.lane.getLength(road[1] + '_' + str(scenicObj.lane)):
-            traci.vehicle.moveTo(scenicObj.name, road[1] + '_' + str(scenicObj.lane), scenicObj.distance)
+            scenicObj.distance > traci.lane.getLength(road[1] \
+                + '_' + str(scenicObj.lane)):
+            traci.vehicle.moveTo(scenicObj.name, road[1] \
+                + '_' + str(scenicObj.lane), scenicObj.distance)
 
         if scenicObj.xPos != 0 or scenicObj.yPos != 0:
             traci.vehicle.moveToXY(scenicObj.name, road, scenicObj.lane,  scenicObj.xPos, 
                                 scenicObj.yPos, angle = scenicObj.angle, keepRoute = scenicObj.vehPlacement)
         
         if scenicObj.speed != -1:
+            traci.vehicle.setMaxSpeed(scenicObj.name, scenicObj.speed)
             traci.vehicle.setSpeed(scenicObj.name, scenicObj.speed)
 
         if scenicObj.lane != 0:
-            traci.vehicle.changeLane(scenicObj.name, scenicObj.lane, 15)
+            traci.vehicle.changeLane(scenicObj.name, scenicObj.lane, 3)
 
         if scenicObj.speedMode != "":
             traci.vehicle.setSpeedMode(scenicObj.name, scenicObj.speedMode)
@@ -291,17 +315,20 @@ class SumoSimulation:
             scenicObj (model.TrafficLight): An object containing information to change the
             state of a traffic light
         """
-        if type(scenicObj.state) == str and type(scenicObj.duration) == str:
-            states = scenicObj.state.split(",")
-            duration = scenicObj.duration.split(",")
+        if (len(scenicObj.state) > 0) and (len(scenicObj.duration) > 0):
+            assert len(scenicObj.state) == len(scenicObj.duration)
+            states = scenicObj.state
+            duration = scenicObj.duration
             phases = []
             for y in range(0, len(states)):
-                phases.append(traci.trafficlight.Phase(int(duration[y]), states[y]))
+                phases.append(traci.trafficlight.Phase(
+                    float(duration[y]), states[y]))
+            trafficData = traci.trafficlight.Logic(
+                scenicObj.name, 0 , 0, phases)
+            traci.trafficlight.setCompleteRedYellowGreenDefinition(
+                scenicObj.name, trafficData)
+        return
 
-            trafficData = traci.trafficlight.Logic(scenicObj.name, 0 , 0, phases)
-            traci.trafficlight.setCompleteRedYellowGreenDefinition(scenicObj.name, trafficData)
-        else:
-            print("Enter traffic light state and duration as string")
 
     def __createPedestrian(self, scenicObj):
 
@@ -315,6 +342,10 @@ class SumoSimulation:
         traci.person.appendWalkingStage(scenicObj.name, scenicObj.route, scenicObj.arrivalPos)
         traci.person.setWidth(scenicObj.name, 1)
         traci.person.setLength(scenicObj.name, .5)
+        traci.person.setColor(scenicObj.name, scenicObj.color)
+
+
+    
 
     def __runSimulation(self):
         """
@@ -322,15 +353,33 @@ class SumoSimulation:
         """
         
         while traci.simulation.getMinExpectedNumber() > 0:
+            
+            # Pedestrian
+            for i, pedObj in enumerate(self.__pedestrian_list):
+                # Pedestrian is in the sim
+                if pedObj.egoWaitAtXing \
+                    and (pedObj.name in traci.person.getIDList()) \
+                    and ("_c" in traci.person.getRoadID(pedObj.name)) \
+                    and (traci.vehicle.getSpeed("ego") == 0) \
+                    and (euclidean_distance(
+                        traci.person.getPosition(pedObj.name),
+                        traci.vehicle.getPosition("ego")
+                    ) < 10):
+                    self.__ped_ego_wait_at_xing_event[i] = \
+                        traci.simulation.getTime()
+                continue    
+
+            # Vehicle Lane Change
             for scenicObj in self.__vehicle_list:
                 if scenicObj.laneChanges != "" and \
                 scenicObj.laneChanges[1] == traci.simulation.getTime():
-                    traci.vehicle.changeLane(scenicObj.name, scenicObj.laneChanges[0], 50)
+                    traci.vehicle.changeLane(scenicObj.name, scenicObj.laneChanges[0], 3)
 
                 if scenicObj.changeSpeed != "" and \
                     scenicObj.changeSpeed[2] == traci.simulation.getTime():
                     traci.vehicle.slowDown(scenicObj.name, scenicObj.changeSpeed[0], scenicObj.changeSpeed[1])
 
+            # End the sim if the ego doesn't exist
             if not "ego" in traci.vehicle.getIDList():
                 break
 
