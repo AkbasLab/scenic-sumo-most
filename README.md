@@ -1,6 +1,6 @@
 # Scenic-Sumo
-This is a developmental version of SUMO Traffic Simulator interface for Scenic 2.0.0.
-Please cite the following IEEE MOST 2023 paper if you use the code:
+This is a developmental version of SUMO Traffic Simulator interface for Scenic 2.0.0.<br>
+Please cite the following IEEE MOST 2023 paper if you use the code:<br>
 Q. Goss and M. I. Akbas. "Integration of Formal Specification and Traffic Simulation for Scenario-Based Validation ." In the IEEE International Conference on Mobility: Operations, Services, and Technologies (IEEE MOST), May, 2023.
 
 ---
